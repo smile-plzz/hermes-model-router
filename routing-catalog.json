@@ -1,0 +1,247 @@
+{
+  "version": 2,
+  "providers": {
+    "groq": {
+      "priority": 1,
+      "free": true,
+      "models": [
+        {
+          "id": "llama-3.1-8b-instant",
+          "tier": "small",
+          "context": 128000,
+          "speed": "fast"
+        },
+        {
+          "id": "llama-3.3-70b-versatile",
+          "tier": "large",
+          "context": 128000,
+          "speed": "medium"
+        },
+        {
+          "id": "openai/gpt-oss-120b",
+          "tier": "massive",
+          "context": 128000,
+          "speed": "medium"
+        },
+        {
+          "id": "openai/gpt-oss-20b",
+          "tier": "medium",
+          "context": 128000,
+          "speed": "medium"
+        },
+        {
+          "id": "allam-2-7b",
+          "tier": "small",
+          "context": 32000,
+          "speed": "fast"
+        },
+        {
+          "id": "groq/compound-mini",
+          "tier": "small",
+          "context": 128000,
+          "speed": "fast"
+        }
+      ],
+      "alias_for": {
+        "small": "llama-3.1-8b-instant",
+        "large": "llama-3.3-70b-versatile",
+        "massive": "openai/gpt-oss-120b",
+        "medium": "openai/gpt-oss-20b"
+      }
+    },
+    "gemini": {
+      "priority": 2,
+      "free": true,
+      "models": [
+        {
+          "id": "gemini-3.6-flash",
+          "tier": "flash",
+          "context": 1000000,
+          "speed": "fast"
+        },
+        {
+          "id": "gemini-3.5-flash-lite",
+          "tier": "lite",
+          "context": 1000000,
+          "speed": "fast"
+        },
+        {
+          "id": "gemini-3.1-flash-lite",
+          "tier": "lite",
+          "context": 1000000,
+          "speed": "fast"
+        },
+        {
+          "id": "gemini-flash-latest",
+          "tier": "legacy",
+          "context": 1000000,
+          "speed": "fast"
+        },
+        {
+          "id": "gemma-4-26b-a4b-it",
+          "tier": "gemma",
+          "context": 128000,
+          "speed": "medium"
+        }
+      ],
+      "alias_for": {
+        "flash": "gemini-3.6-flash",
+        "lite": "gemini-3.5-flash-lite",
+        "cheap": "gemini-3.1-flash-lite",
+        "legacy": "gemini-flash-latest",
+        "gemma": "gemma-4-26b-a4b-it"
+      }
+    },
+    "nous": {
+      "priority": 3,
+      "free": true,
+      "models": [
+        {
+          "id": "upstage/solar-pro4:free",
+          "tier": "pro",
+          "context": 128000,
+          "speed": "medium"
+        }
+      ],
+      "alias_for": {
+        "pro": "upstage/solar-pro4:free"
+      }
+    },
+    "openrouter": {
+      "priority": 4,
+      "free": true,
+      "models": [
+        {
+          "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+          "tier": "ultra",
+          "context": 128000,
+          "speed": "medium"
+        },
+        {
+          "id": "google/gemma-4-26b-a4b-it:free",
+          "tier": "gemma",
+          "context": 128000,
+          "speed": "medium"
+        },
+        {
+          "id": "nvidia/nemotron-3-nano-30b-a3b:free",
+          "tier": "nano",
+          "context": 128000,
+          "speed": "medium"
+        },
+        {
+          "id": "nvidia/nemotron-3.5-lightning:free",
+          "tier": "light",
+          "context": 128000,
+          "speed": "fast"
+        }
+      ],
+      "alias_for": {
+        "ultra": "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "gemma": "google/gemma-4-26b-a4b-it:free",
+        "nano": "nvidia/nemotron-3-nano-30b-a3b:free",
+        "light": "nvidia/nemotron-3.5-lightning:free"
+      }
+    },
+    "mistral": {
+      "priority": 3,
+      "free": true,
+      "models": [
+        {
+          "id": "mistral-large-latest",
+          "tier": "large",
+          "context": 262144,
+          "speed": "medium"
+        },
+        {
+          "id": "mistral-medium-latest",
+          "tier": "medium",
+          "context": 262144,
+          "speed": "medium"
+        },
+        {
+          "id": "mistral-small-latest",
+          "tier": "small",
+          "context": 262144,
+          "speed": "fast"
+        },
+        {
+          "id": "codestral-latest",
+          "tier": "code",
+          "context": 256000,
+          "speed": "medium"
+        },
+        {
+          "id": "devstral-latest",
+          "tier": "code",
+          "context": 262144,
+          "speed": "medium"
+        },
+        {
+          "id": "ministral-8b-latest",
+          "tier": "small",
+          "context": 262144,
+          "speed": "fast"
+        },
+        {
+          "id": "ministral-14b-latest",
+          "tier": "medium",
+          "context": 262144,
+          "speed": "medium"
+        },
+        {
+          "id": "ministral-3b-latest",
+          "tier": "tiny",
+          "context": 131072,
+          "speed": "fast"
+        }
+      ],
+      "alias_for": {
+        "large": "mistral-large-latest",
+        "medium": "mistral-medium-latest",
+        "small": "mistral-small-latest",
+        "code": "codestral-latest",
+        "dev": "devstral-latest"
+      }
+    }
+  },
+  "provider_order_free_first": [
+    "groq",
+    "gemini",
+    "mistral",
+    "nous",
+    "openrouter"
+  ],
+  "fallbacks": {
+    "groq": [
+      "gemini",
+      "nous",
+      "openrouter",
+      "mistral"
+    ],
+    "gemini": [
+      "groq",
+      "nous",
+      "openrouter",
+      "mistral"
+    ],
+    "nous": [
+      "groq",
+      "gemini",
+      "openrouter",
+      "mistral"
+    ],
+    "openrouter": [
+      "groq",
+      "gemini",
+      "nous",
+      "mistral"
+    ],
+    "mistral": [
+      "groq",
+      "gemini",
+      "nous",
+      "openrouter"
+    ]
+  }
+}
