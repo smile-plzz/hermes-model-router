@@ -463,13 +463,19 @@ class Router:
                 f"margin {result['margin']}, confidence {confidence}) via: {hits}"
             )
             if (result["margin"] < ambiguity["ask_when_margin_below"]
-                    and confidence < ambiguity["ask_when_confidence_below"]
-                    and result["runner_up"]):
+                    and confidence < ambiguity["ask_when_confidence_below"]):
                 ask_user = True
-                options = [t for t, _ in sorted(
-                    result["scores"].items(), key=lambda kv: -kv[1])][:3]
-                ask_prompt = ambiguity["prompt_template"].replace("{options}", " / ".join(options))
-                reasoning.append(f"Ambiguous: {task_type} vs {result['runner_up']}")
+                if result["runner_up"]:
+                    options = [t for t, _ in sorted(
+                        result["scores"].items(), key=lambda kv: -kv[1])][:3]
+                    ask_prompt = ambiguity["prompt_template"].replace(
+                        "{options}", " / ".join(options))
+                    reasoning.append(f"Ambiguous: {task_type} vs {result['runner_up']}")
+                else:
+                    # A single weak keyword is not evidence of anything much.
+                    ask_prompt = ambiguity["low_confidence_template"].replace(
+                        "{best}", task_type)
+                    reasoning.append(f"Weak match: '{task_type}' on thin evidence")
 
         skipped = [p for p in self.catalog["provider_order"] if self.cooling_down(p)]
         for p in skipped:

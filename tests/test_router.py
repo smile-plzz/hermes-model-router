@@ -78,6 +78,18 @@ def test_unmatched_text_asks_the_user(router):
     assert decision["task_type"] == "simple"
 
 
+def test_single_weak_keyword_is_flagged_not_trusted(router):
+    """One generic weak keyword is not evidence — it must still ask."""
+    decision = router.route("please outline the remaining items for me")
+    assert decision["ask_user"] is True
+    assert decision["ask_prompt"]
+
+
+def test_generic_draft_does_not_mean_creative(router):
+    """'draft replies' is inbox work, not creative writing."""
+    assert router.route("triage my inbox and draft replies")["task_type"] != "creative"
+
+
 def test_tag_overrides_classification(router):
     decision = router.route("write a poem about rain", tag="code")
     assert decision["task_type"] == "code"

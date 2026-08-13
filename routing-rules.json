@@ -77,7 +77,7 @@
       ],
       "weak": [
         "write", "ideas", "invent", "imagine", "concept", "metaphor",
-        "outline", "draft", "marketing", "slogan", "pitch"
+        "outline", "marketing", "slogan", "pitch"
       ]
     },
     "long_context": {
@@ -114,6 +114,7 @@
     "ask_when_margin_below": 6,
     "ask_when_confidence_below": 45,
     "default_task_type": "simple",
-    "prompt_template": "This task could be [{options}]. Which fits best? (or say 'other' and describe it)"
+    "prompt_template": "This task could be [{options}]. Which fits best? (or say 'other' and describe it)",
+    "low_confidence_template": "This looks like a '{best}' task, but only just. Is that right? (simple / code / reasoning / creative / summary / long_context)"
   }
 }

@@ -234,7 +234,7 @@ router.save_state()
 python -m pytest tests -q
 ```
 
-47 tests, no network access — provider calls are stubbed. They cover
+49 tests, no network access — provider calls are stubbed. They cover
 classification (including the regressions this router was built to fix),
 candidate scoring, cooldown handling, key filtering, config resolution, HTTP
 error classification and end-to-end failover.
