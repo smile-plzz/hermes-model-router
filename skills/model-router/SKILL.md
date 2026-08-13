@@ -1,101 +1,90 @@
-# Model Router Skill
+---
+name: model-router
+description: Pick the best free-tier model for an incoming task. Use as the first action on each turn, before doing the work, so the task runs on an appropriately sized free model instead of whatever is currently loaded.
+---
 
-Automatically classifies an incoming task and selects the best free-tier model
-from available providers (Groq → Gemini → Nous → OpenRouter free pool).
+# Model Router
 
-## Usage
+Classifies a task and selects the best free model across Groq, Gemini, Mistral,
+Nous and OpenRouter. Providers with no API key, and providers currently in
+rate-limit cooldown, are excluded automatically.
 
-Call this skill as the FIRST action on any incoming task. It returns a routing
-decision including the recommended model, provider, switch command, and reasoning.
+## Deciding which model to use
 
-## How it works
+Run this first, with the user's task text:
 
-1. **Classify** — reads the task text, matches against task-type keywords
-2. **Score** — ranks all available (provider, model) candidates by fit + cost
-3. **Pick** — selects the highest-scoring free-tier model
-4. **Output** — returns: task_type, provider, model, switch command, confidence, reasoning
-
-## Files
-
-- `routing-catalog.json` — provider/model catalog (free-first order)
-- `routing-rules.json` — task type definitions + scoring rules
-- `routing-state.json` — live state (rate limits, history, session counters)
-- `routing-router.py` — the router core (classify → score → pick)
-
-## Invocation
-
-The agent should call this skill before processing any incoming task:
-
-```
-# Run the router on the task text
-python3 routing-router.py "<task description>" --json
-
-# Or with an explicit task type tag if the user specified one
-python3 routing-router.py "<task description>" --tag code --json
+```bash
+python router.py "<task text>" --json
 ```
 
-## Output format
+Then apply `switch_command` (e.g. `/model groq/llama-3.3-70b-versatile`).
 
-The router emits JSON with these fields:
+If the user already told you the kind of task, skip classification:
 
-| Field | Description |
-|-------|-------------|
-| `task_type` | Classified type: simple, code, reasoning, long_context, creative, summary |
-| `chosen_provider` | Best provider: groq, gemini, nous, openrouter |
-| `chosen_model` | Raw model id (e.g. llama-3.3-70b-versatile) |
-| `chosen_alias` | Friendly tier alias (e.g. large, flash, small) |
-| `switch_command` | The `/model` command to switch this session |
-| `confidence` | Classification confidence score |
-| `ask_user` | Whether the router is confused and wants user input |
-| `ask_prompt` | Question to ask the user if confused |
-| `reasoning` | List of strings explaining the decision |
-| `all_candidates` | All scored candidates for transparency |
+```bash
+python router.py "<task text>" --tag code --json
+```
 
-## Switch command format
+Valid tags: `simple`, `code`, `reasoning`, `creative`, `summary`, `long_context`.
 
-The router produces one of these switch commands:
+## Getting an answer directly
 
-- `/model groq/llama-3.3-70b-versatile` — direct provider/model form
-- `/model gemini/gemini-3.6-flash` — direct provider/model form
-- `/model nous/upstage/solar-pro4:free` — direct provider/model form
-- `/model openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` — direct provider/model form
+`/model` only takes effect on the *next* turn — the current turn is still
+answered by the previous model. When the routed model should answer right now,
+call it directly instead:
 
-These are in the `provider/model_id` short form that Hermes accepts for
-session-scoped model switching.
+```bash
+python respond.py "<task text>" --raw
+```
 
-## Confusion handling
+This routes, calls the chosen model, and falls back to the next provider if that
+one is rate-limited or down.
 
-When the router can't decide confidently (score below threshold, close runner-up),
-it sets `ask_user: true` and provides an `ask_prompt`. The agent should ask the
-user before proceeding. If the user specifies a type, re-run with `--tag <type>`.
+## Decision fields
 
-## Mid-session switching
+| Field | Meaning |
+|-------|---------|
+| `task_type` | simple, code, reasoning, creative, summary, long_context |
+| `provider` / `model` | the choice; `null` if nothing is available |
+| `switch_command` | the `/model` command to apply |
+| `class` | capability class of the chosen model (tiny…xlarge) |
+| `confidence` | 0–100 classification confidence |
+| `ask_user` / `ask_prompt` | the classification was ambiguous — see below |
+| `reasoning` | why this decision, including which providers were skipped |
+| `candidates` | every scored model, best first |
 
-`/model <command>` works mid-session on CLI and Telegram — subsequent turns use
-the new model. The current turn's response still comes from the pre-switch model,
-but all future turns use the routed model.
+## When `ask_user` is true
 
-## Task type reference
+The task looked like more than one type, or matched nothing at all. The decision
+is still usable — it is a suggestion, not a blocker.
 
-| Type | Best free provider | Typical model | Use when |
-|------|-------------------|---------------|----------|
-| simple | groq | llama-3.1-8b-instant | greetings, short Q&A, confirmations |
-| code | groq | llama-3.3-70b-versatile | coding, debugging, scripts, APIs |
-| reasoning | gemini | gemini-3.6-flash | analysis, planning, research, math |
-| long_context | gemini | gemini-3.6-flash | large documents, big context |
-| creative | groq | llama-3.3-70b-versatile | writing, brainstorming, poetry |
-| summary | groq | llama-3.1-8b-instant | summarization, extraction, tl;dr |
+- Mid-conversation, where the type is obvious from context: proceed with the
+  chosen model.
+- Genuinely unclear, or the task is expensive to get wrong: ask the user with
+  `ask_prompt`, then re-run with `--tag <their answer>`.
 
-## Provider fallback chain
+Never ask the user twice about the same task.
 
-If a provider is rate-limited or unavailable, the router falls back in this order:
-`groq → gemini → nous → openrouter` (all free tier).
+## When nothing is available
 
-## State tracking
+`provider` is `null` when every provider is either unconfigured or in cooldown.
+Carry on with the current model and mention it. Do not retry in a loop.
 
-The router records each decision in `routing-state.json`:
-- Per-provider rate limit hit counters + cooldowns
-- Session task count + model switch count
-- Task history (last 50)
+## Troubleshooting
 
-When a provider hits 3 rate-limit hits, it's cooldowned for 5 minutes.
+```bash
+python router.py --doctor          # config validity, key status, cooldowns, probe routes
+python router.py --doctor --live   # also verify model ids against the provider APIs
+python router.py --list            # every provider and model
+```
+
+If the router reports a config version mismatch, the copy in `$HERMES_HOME` is
+stale — refresh `routing-catalog.json` and `routing-rules.json` from the repo.
+
+## Notes
+
+- Config resolves from `--config-dir`, then `$HERMES_ROUTER_HOME`, then
+  `$HERMES_HOME`, then the script's own directory.
+- State (rate limits, cooldowns, last 50 decisions) lives in
+  `routing-state.json` next to the config.
+- Use `python`, not `python3` — `python3` is a broken stub on Windows.

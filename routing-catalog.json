@@ -1,247 +1,75 @@
 {
-  "version": 2,
+  "version": 3,
+  "classes": ["tiny", "small", "medium", "large", "xlarge"],
+  "strengths": ["fast", "code", "reasoning", "creative", "long_context"],
   "providers": {
     "groq": {
-      "priority": 1,
       "free": true,
+      "api": "openai_chat",
+      "endpoint": "https://api.groq.com/openai/v1/chat/completions",
+      "models_endpoint": "https://api.groq.com/openai/v1/models",
+      "key_env": ["GROQ_API_KEY"],
       "models": [
-        {
-          "id": "llama-3.1-8b-instant",
-          "tier": "small",
-          "context": 128000,
-          "speed": "fast"
-        },
-        {
-          "id": "llama-3.3-70b-versatile",
-          "tier": "large",
-          "context": 128000,
-          "speed": "medium"
-        },
-        {
-          "id": "openai/gpt-oss-120b",
-          "tier": "massive",
-          "context": 128000,
-          "speed": "medium"
-        },
-        {
-          "id": "openai/gpt-oss-20b",
-          "tier": "medium",
-          "context": 128000,
-          "speed": "medium"
-        },
-        {
-          "id": "allam-2-7b",
-          "tier": "small",
-          "context": 32000,
-          "speed": "fast"
-        },
-        {
-          "id": "groq/compound-mini",
-          "tier": "small",
-          "context": 128000,
-          "speed": "fast"
-        }
-      ],
-      "alias_for": {
-        "small": "llama-3.1-8b-instant",
-        "large": "llama-3.3-70b-versatile",
-        "massive": "openai/gpt-oss-120b",
-        "medium": "openai/gpt-oss-20b"
-      }
+        { "id": "llama-3.1-8b-instant", "class": "small", "context": 128000, "strengths": ["fast"] },
+        { "id": "groq/compound-mini", "class": "small", "context": 128000, "strengths": ["fast"] },
+        { "id": "allam-2-7b", "class": "tiny", "context": 32000, "strengths": ["fast"] },
+        { "id": "openai/gpt-oss-20b", "class": "medium", "context": 128000, "strengths": ["fast", "code"] },
+        { "id": "llama-3.3-70b-versatile", "class": "large", "context": 128000, "strengths": ["code", "creative", "reasoning"] },
+        { "id": "openai/gpt-oss-120b", "class": "xlarge", "context": 128000, "strengths": ["reasoning", "code"] }
+      ]
     },
     "gemini": {
-      "priority": 2,
       "free": true,
+      "api": "gemini",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+      "models_endpoint": "https://generativelanguage.googleapis.com/v1beta/models",
+      "key_env": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
       "models": [
-        {
-          "id": "gemini-3.6-flash",
-          "tier": "flash",
-          "context": 1000000,
-          "speed": "fast"
-        },
-        {
-          "id": "gemini-3.5-flash-lite",
-          "tier": "lite",
-          "context": 1000000,
-          "speed": "fast"
-        },
-        {
-          "id": "gemini-3.1-flash-lite",
-          "tier": "lite",
-          "context": 1000000,
-          "speed": "fast"
-        },
-        {
-          "id": "gemini-flash-latest",
-          "tier": "legacy",
-          "context": 1000000,
-          "speed": "fast"
-        },
-        {
-          "id": "gemma-4-26b-a4b-it",
-          "tier": "gemma",
-          "context": 128000,
-          "speed": "medium"
-        }
-      ],
-      "alias_for": {
-        "flash": "gemini-3.6-flash",
-        "lite": "gemini-3.5-flash-lite",
-        "cheap": "gemini-3.1-flash-lite",
-        "legacy": "gemini-flash-latest",
-        "gemma": "gemma-4-26b-a4b-it"
-      }
-    },
-    "nous": {
-      "priority": 3,
-      "free": true,
-      "models": [
-        {
-          "id": "upstage/solar-pro4:free",
-          "tier": "pro",
-          "context": 128000,
-          "speed": "medium"
-        }
-      ],
-      "alias_for": {
-        "pro": "upstage/solar-pro4:free"
-      }
-    },
-    "openrouter": {
-      "priority": 4,
-      "free": true,
-      "models": [
-        {
-          "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
-          "tier": "ultra",
-          "context": 128000,
-          "speed": "medium"
-        },
-        {
-          "id": "google/gemma-4-26b-a4b-it:free",
-          "tier": "gemma",
-          "context": 128000,
-          "speed": "medium"
-        },
-        {
-          "id": "nvidia/nemotron-3-nano-30b-a3b:free",
-          "tier": "nano",
-          "context": 128000,
-          "speed": "medium"
-        },
-        {
-          "id": "nvidia/nemotron-3.5-lightning:free",
-          "tier": "light",
-          "context": 128000,
-          "speed": "fast"
-        }
-      ],
-      "alias_for": {
-        "ultra": "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "gemma": "google/gemma-4-26b-a4b-it:free",
-        "nano": "nvidia/nemotron-3-nano-30b-a3b:free",
-        "light": "nvidia/nemotron-3.5-lightning:free"
-      }
+        { "id": "gemini-3.1-flash-lite", "class": "small", "context": 1000000, "strengths": ["fast", "long_context"] },
+        { "id": "gemini-3.5-flash-lite", "class": "medium", "context": 1000000, "strengths": ["fast", "long_context"] },
+        { "id": "gemini-flash-latest", "class": "medium", "context": 1000000, "strengths": ["fast", "long_context"] },
+        { "id": "gemma-4-26b-a4b-it", "class": "medium", "context": 128000, "strengths": ["creative"] },
+        { "id": "gemini-3.6-flash", "class": "large", "context": 1000000, "strengths": ["reasoning", "long_context", "creative", "code"] }
+      ]
     },
     "mistral": {
-      "priority": 3,
       "free": true,
+      "api": "openai_chat",
+      "endpoint": "https://api.mistral.ai/v1/chat/completions",
+      "models_endpoint": "https://api.mistral.ai/v1/models",
+      "key_env": ["MISTRAL_API_KEY"],
       "models": [
-        {
-          "id": "mistral-large-latest",
-          "tier": "large",
-          "context": 262144,
-          "speed": "medium"
-        },
-        {
-          "id": "mistral-medium-latest",
-          "tier": "medium",
-          "context": 262144,
-          "speed": "medium"
-        },
-        {
-          "id": "mistral-small-latest",
-          "tier": "small",
-          "context": 262144,
-          "speed": "fast"
-        },
-        {
-          "id": "codestral-latest",
-          "tier": "code",
-          "context": 256000,
-          "speed": "medium"
-        },
-        {
-          "id": "devstral-latest",
-          "tier": "code",
-          "context": 262144,
-          "speed": "medium"
-        },
-        {
-          "id": "ministral-8b-latest",
-          "tier": "small",
-          "context": 262144,
-          "speed": "fast"
-        },
-        {
-          "id": "ministral-14b-latest",
-          "tier": "medium",
-          "context": 262144,
-          "speed": "medium"
-        },
-        {
-          "id": "ministral-3b-latest",
-          "tier": "tiny",
-          "context": 131072,
-          "speed": "fast"
-        }
-      ],
-      "alias_for": {
-        "large": "mistral-large-latest",
-        "medium": "mistral-medium-latest",
-        "small": "mistral-small-latest",
-        "code": "codestral-latest",
-        "dev": "devstral-latest"
-      }
+        { "id": "ministral-3b-latest", "class": "tiny", "context": 131072, "strengths": ["fast"] },
+        { "id": "ministral-8b-latest", "class": "small", "context": 262144, "strengths": ["fast"] },
+        { "id": "mistral-small-latest", "class": "small", "context": 262144, "strengths": ["fast", "code"] },
+        { "id": "ministral-14b-latest", "class": "medium", "context": 262144, "strengths": ["fast"] },
+        { "id": "codestral-latest", "class": "medium", "context": 256000, "strengths": ["code"] },
+        { "id": "devstral-latest", "class": "medium", "context": 262144, "strengths": ["code"] },
+        { "id": "mistral-medium-latest", "class": "medium", "context": 262144, "strengths": ["reasoning", "code"] },
+        { "id": "mistral-large-latest", "class": "large", "context": 262144, "strengths": ["reasoning", "code", "creative"] }
+      ]
+    },
+    "nous": {
+      "free": true,
+      "api": "hermes_cli",
+      "key_env": [],
+      "models": [
+        { "id": "upstage/solar-pro4:free", "class": "medium", "context": 128000, "strengths": ["reasoning"] }
+      ]
+    },
+    "openrouter": {
+      "free": true,
+      "api": "openai_chat",
+      "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+      "models_endpoint": "https://openrouter.ai/api/v1/models",
+      "key_env": ["OPENROUTER_API_KEY"],
+      "models": [
+        { "id": "nvidia/nemotron-3.5-lightning:free", "class": "small", "context": 128000, "strengths": ["fast"] },
+        { "id": "nvidia/nemotron-3-nano-30b-a3b:free", "class": "small", "context": 128000, "strengths": ["fast"] },
+        { "id": "google/gemma-4-26b-a4b-it:free", "class": "medium", "context": 128000, "strengths": ["creative"] },
+        { "id": "nvidia/nemotron-3-ultra-550b-a55b:free", "class": "xlarge", "context": 128000, "strengths": ["reasoning", "code"] }
+      ]
     }
   },
-  "provider_order_free_first": [
-    "groq",
-    "gemini",
-    "mistral",
-    "nous",
-    "openrouter"
-  ],
-  "fallbacks": {
-    "groq": [
-      "gemini",
-      "nous",
-      "openrouter",
-      "mistral"
-    ],
-    "gemini": [
-      "groq",
-      "nous",
-      "openrouter",
-      "mistral"
-    ],
-    "nous": [
-      "groq",
-      "gemini",
-      "openrouter",
-      "mistral"
-    ],
-    "openrouter": [
-      "groq",
-      "gemini",
-      "nous",
-      "mistral"
-    ],
-    "mistral": [
-      "groq",
-      "gemini",
-      "nous",
-      "openrouter"
-    ]
-  }
+  "provider_order": ["groq", "gemini", "mistral", "nous", "openrouter"]
 }

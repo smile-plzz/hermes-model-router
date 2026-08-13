@@ -1,299 +1,258 @@
 # Hermes Model Router
 
-Automatic free-tier model routing for Hermes Agent — classifies incoming tasks
-by context and picks the best available free model across Groq, Gemini, Mistral,
-Nous, and OpenRouter.
+Automatic free-tier model routing for Hermes Agent. Classifies an incoming task,
+picks the best free model for it across Groq, Gemini, Mistral, Nous and
+OpenRouter, and either prints the `/model` switch command or calls the model
+directly and returns the answer.
 
-![Routing Demo](docs/demo.gif)
+The goal is zero cost: every model in the catalog is on a free tier.
 
-## What It Does
+## How it works
 
-Every time a task comes in, the router:
+```
+task text
+   │
+   ├─ classify ──→ task type (simple / code / reasoning / creative / summary / long_context)
+   │                each type declares a target capability class + wanted strengths
+   │
+   ├─ filter ────→ drop providers with no API key, and providers in cooldown
+   │
+   ├─ score ─────→ every remaining model, on class fit + strengths + context +
+   │                provider preference + free-tier + recent rate limits
+   │
+   └─ pick ──────→ highest score, ties broken by catalog order
+```
 
-1. **Classifies** the task type (simple, code, reasoning, creative, summary, long_context)
-2. **Scores** all available (provider, model) candidates by fit + free-tier preference
-3. **Picks** the highest-scoring free model
-4. **Outputs** the routing decision + `/model` switch command
+Models are described on a **shared capability scale**, not per-provider tier
+names, so candidates from different providers are actually comparable:
 
-The goal: zero cost. Every model in the catalog is on a free tier.
+- `class`: `tiny` → `small` → `medium` → `large` → `xlarge`
+- `strengths`: `fast`, `code`, `reasoning`, `creative`, `long_context`
+- `context`: usable context window
 
-## Provider Pool
+A task type asks for a target class and the strengths it cares about. Being one
+class *under* target is penalised harder than being one class over, so the
+router degrades toward a bigger model rather than a weaker one.
 
-| Provider | Free Models | Best For |
-|----------|------------|----------|
-| **Groq** | llama-3.1-8b-instant, llama-3.3-70b-versatile, gpt-oss-120b/20b, allam-2-7b, compound-mini | Code, general chat, creative (fast) |
-| **Gemini** | gemini-3.6-flash, gemini-3.5-flash-lite, gemini-3.1-flash-lite, gemini-flash-latest, gemma-4-26b-a4b-it | Reasoning, long context, creative |
-| **Mistral** | mistral-large/medium/small-latest, codestral-latest, devstral-latest, ministral-3b/8b/14b-latest | Code, reasoning, general (strong all-rounder) |
-| **Nous** | solar-pro4:free (default) | General fallback |
-| **OpenRouter** | nvidia/nemotron-3-ultra-550b:free, gemma-4-26b-a4b-it:free, nemotron-3-nano-30b:free, nemotron-3.5-lightning:free | Ultra-large model when needed |
-
-**Routing priority (free-first):** Groq → Gemini → Mistral → Nous → OpenRouter
-
-## Quick Start
-
-### 1. Install
+## Quick start
 
 ```bash
-# Clone
 git clone https://github.com/smile-plzz/hermes-model-router.git
 cd hermes-model-router
+cp .env.example .env      # fill in whichever keys you have
 
-# Copy files to your Hermes home
-cp routing-catalog.json routing-rules.json routing-state.json routing-router.py $HERMES_HOME/
-mkdir -p $HERMES_HOME/skills/model-router
-cp skills/model-router/SKILL.md $HERMES_HOME/skills/model-router/
+python router.py --doctor            # check config, keys and routing health
+python router.py "write a python function that merges two sorted lists"
+python respond.py "explain monads in two sentences"
 ```
 
-### 2. Configure API Keys
+Nothing needs to be copied anywhere to try it — the router finds its config in
+its own directory. See [Deploying into Hermes](#deploying-into-hermes) for the
+always-on setup.
 
-Add your free-tier API keys to `$HERMES_HOME/.env`:
+## Commands
+
+### `router.py` — decide only
 
 ```bash
-# Groq (fast, free tier)
-GROQ_API_KEY=gsk_...
-
-# Google AI Studio (Gemini, free tier)
-GOOGLE_API_KEY=AQ....
-GEMINI_API_KEY=AQ....
-
-# Mistral AI (free tier)
-MISTRAL_API_KEY=fTgK...
-
-# OpenRouter (aggregate, free models available)
-OPENROUTER_API_KEY=sk-or-v1-...
-
-# Nous (already configured via OAuth)
+python router.py "your task"                # human-readable decision
+python router.py "your task" --json         # machine-readable
+python router.py "your task" --tag code     # skip classification
+python router.py --list                     # every provider and model
+python router.py --doctor                   # health check
+python router.py --doctor --live            # also verify model ids against the provider APIs
 ```
 
-### 3. Register Hermes Aliases (optional but recommended)
+Useful flags: `--config-dir` (where the `routing-*.json` live), `--state-path`,
+`--no-record` (don't touch the state file), `--ignore-keys` (score providers
+even without a key configured).
 
-```bash
-# These let you switch models with short names like /model groq-code
-hermes config set model.aliases.groq-code openrouter/groq/llama-3.3-70b-versatile
-hermes config set model.aliases.groq-small openrouter/groq/llama-3.1-8b-instant
-hermes config set model.aliases.gemini-flash openrouter/gemini/gemini-3.6-flash
-hermes config set model.aliases.mistral-large openrouter/mistral/mistral-large-latest
-```
-
-### 4. Test the Router
-
-```bash
-cd $HERMES_HOME
-python3 routing-router.py "write a python function that merges two sorted lists"
-```
+Example:
 
 ```
-📋 TASK: write a python function that merges two sorted lists
-🏷️  TYPE: code
-🎯 PROVIDER: groq
-🤖 MODEL: llama-3.3-70b-versatile
-🔄 SWITCH: /model groq/llama-3.3-70b-versatile
-📊 CONFIDENCE: 50
-------------------------------------------------------------
+==================================================================
+TASK       : write a python function that merges two sorted lists
+TYPE       : code  (confidence 78)
+PROVIDER   : groq
+MODEL      : llama-3.3-70b-versatile
+SWITCH     : /model groq/llama-3.3-70b-versatile
+------------------------------------------------------------------
 REASONING:
-  • Classified as 'code': Code generation, review, debugging, scripts
-  • Classification score: 50 (threshold to ask: 12)
-  • Chosen: groq → llama-3.3-70b-versatile (score: 65.0)
-------------------------------------------------------------
-CANDIDATES considered:
-  - groq         | llama-3.3-70b-versatile             | tier=large    | score=65.0
-  - mistral      | mistral-large-latest                | tier=large    | score=59.5
-  - gemini       | gemini-3.6-flash                    | tier=flash    | score=57.0
-  - nous         | upstage/solar-pro4:free             | tier=pro      | score=56.0
-  - openrouter   | nvidia/nemotron-3-ultra-550b-a55b:free | tier=ultra    | score=55.5
-============================================================
+  - Classified 'code' (score 20, margin 20, confidence 78) via: function, python
+  - Chose groq/llama-3.3-70b-versatile (class large, score 67.5)
+------------------------------------------------------------------
+TOP CANDIDATES:
+     67.5  groq        llama-3.3-70b-versatile      large  (strengths code; preferred provider)
+     60.0  gemini      gemini-3.6-flash             large  (strengths code)
+     58.5  groq        openai/gpt-oss-120b          xlarge (class xlarge vs target large; ...)
+==================================================================
 ```
 
-### 5. Use in Hermes Sessions
+### `respond.py` — decide *and* answer
 
-The skill is auto-loaded by Hermes. Before processing any task, Alfred (or any
-agent) calls the router:
-
-```
-# Agent calls this as first action on each turn:
-python3 routing-router.py "<task description>" --json
-
-# Then switches model:
-/model groq/llama-3.3-70b-versatile
-```
-
-Or use the `--json` flag for programmatic integration:
+Routes, calls the winning model, and falls back down the ranked list when a
+provider fails. What happened is written back to the state file, so a provider
+that rate-limits you actually cools down.
 
 ```bash
-python3 routing-router.py "your task" --json | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print(d['switch_command'])  # /model groq/llama-3.3-70b-versatile
-"
+python respond.py "your task"           # answer + which model produced it
+python respond.py "your task" --raw     # answer only, for piping
+python respond.py "your task" --json    # full result incl. every attempt
 ```
 
-## Task Types
+Failover is one model per provider (default 4 attempts, `--max-attempts`) —
+retrying a smaller model behind the same rate limit is not worth the latency.
 
-| Type | Keywords | Default Provider | Example |
-|------|----------|------------------|---------|
-| `simple` | hello, hi, thanks, quick, confirm, done | Groq (8b) | "hey what's up", "thanks" |
-| `code` | code, function, bug, debug, refactor, python, API | Groq (70b) or Mistral (large) | "write a function to merge sorted lists" |
-| `reasoning` | analyze, plan, strategy, pros and cons, evaluate | Gemini (flash) or Mistral (large) | "microservices vs monolith pros and cons" |
-| `creative` | story, poem, brainstorm, ideas, write, creative | Groq (70b) or Mistral (large) | "write a poem about rain in Dhaka" |
-| `summary` | summarize, tl;dr, extract, key points, condense | Groq (8b) | "summarize this in one sentence" |
-| `long_context` | long document, entire, big context, many pages | Gemini (flash, 1M context) | "summarize this 200-page document" |
+### `--doctor`
+
+The health check, and the first thing to run when routing misbehaves:
+
+- validates the catalog and rules against each other (unknown classes, unknown
+  strengths, task types pointing at providers that don't exist)
+- reports which providers have a usable key and which are in cooldown
+- routes six probe tasks so you can see the classifier's actual behaviour
+- with `--live`, calls each provider's model-list endpoint and reports catalog
+  entries that no longer exist
+
+## Task types
+
+| Type | Target class | Wants | Prefers | Example |
+|------|-------------|-------|---------|---------|
+| `simple` | small | fast | Groq | "hey what's up", "thanks" |
+| `summary` | small | fast | Groq | "summarize this in one sentence" |
+| `code` | large | code | Groq | "write a function to merge sorted lists" |
+| `reasoning` | large | reasoning | Gemini | "microservices vs monolith, pros and cons" |
+| `creative` | large | creative | Groq | "write a poem about rain in Dhaka" |
+| `long_context` | large | long_context (≥500k ctx) | Gemini | "summarize this 200-page document" |
+
+`simple` only applies to messages of 8 words or fewer, so a greeting in front of
+real work ("hey, now refactor the auth module…") cannot downgrade the model.
+
+## Classification
+
+Each task type declares `strong` keywords (10 points) and `weak` ones (3).
+Matching rules:
+
+- **phrases** ("pros and cons") — substring match
+- **words ≥4 chars** ("debug") — prefix match on a word boundary, so it catches
+  "debugging" but "large" does not fire inside "enlarge"
+- **words <4 chars** ("yo") — exact token match only
+
+The highest total wins. Ties are broken by each type's declared `precedence`,
+never by dictionary order — `code` outranks `simple`, so "write a one-line
+python hello world" is code, not chat.
+
+`confidence` (0–100) combines the winner's share of all matched evidence with
+how much evidence there was. When the margin over the runner-up is small *and*
+confidence is low, the decision carries `ask_user: true` and a prompt listing
+the plausible types. The decision is still usable — asking is a suggestion, not
+a blocker.
 
 ## Configuration
 
-### routing-catalog.json
+| File | Purpose |
+|------|---------|
+| `routing-catalog.json` | providers, endpoints, key names, models with class/strengths/context |
+| `routing-rules.json` | task types, keywords, scoring weights, ambiguity thresholds |
+| `routing-state.json` | live state: rate-limit counters, cooldowns, session stats, history |
 
-Provider and model catalog. Edit to add/remove providers or models.
+Config is looked up in this order, first hit wins:
 
-```json
-{
-  "providers": {
-    "groq": { "priority": 1, "free": true, "models": [...] },
-    "gemini": { "priority": 2, "free": true, "models": [...] },
-    "mistral": { "priority": 3, "free": true, "models": [...] },
-    "nous": { "priority": 4, "free": true, "models": [...] },
-    "openrouter": { "priority": 5, "free": true, "models": [...] }
-  },
-  "provider_order_free_first": ["groq", "gemini", "mistral", "nous", "openrouter"]
-}
-```
+1. `--config-dir` (if given, it must contain the files — a typo is an error, not
+   a silent fallback)
+2. `$HERMES_ROUTER_HOME`
+3. `$HERMES_HOME`
+4. the directory holding `router.py`
 
-### routing-rules.json
+API keys come from the real environment first, then from a `.env` in any
+directory on that same search path.
 
-Task type definitions, keywords, and scoring rules.
+Both config files carry a `version`. If it doesn't match what the code expects
+the router refuses to start and tells you where the stale copy is, rather than
+failing later with a confusing error.
 
-```json
-{
-  "task_types": {
-    "code": {
-      "keywords": ["code", "function", "bug", "debug", ...],
-      "default_tier": "large",
-      "prefer_provider": "groq"
-    }
-  },
-  "scoring": {
-    "keyword_match_bonus": 10,
-    "free_provider_bonus": 8,
-    "rate_limit_penalty": -20
-  }
-}
-```
+### Adding a model
 
-### routing-state.json
-
-Live state — rate limit counters, session stats, task history.
+Add it to the right provider in `routing-catalog.json`:
 
 ```json
-{
-  "providers": {
-    "groq": { "rate_limit_hits": 0, "last_used": "...", "cooldown_until": null },
-    "gemini": { "rate_limit_hits": 0, "last_used": "...", "cooldown_until": null }
-  },
-  "session": { "tasks": 42, "model_switches": 12, "cost_estimate": 0.0 },
-  "history": [ ... ]
-}
+{ "id": "some-new-model", "class": "large", "context": 128000,
+  "strengths": ["code", "reasoning"] }
 ```
 
-## Running the Router
+Then `python router.py --doctor --live` to confirm the id is real and the config
+still validates. Order within a provider is the tie-break, so put the ones you
+prefer first.
+
+## Rate limits and cooldown
+
+- a `429`, or a `400` that mentions quota, increments the provider's counter
+- 3 hits puts the provider in a 5-minute cooldown; further hits double it
+- providers in cooldown are removed from scoring entirely
+- any success resets the counter and clears the cooldown
+
+`auth` failures are reported but never trigger a cooldown — a bad key is not a
+rate limit, and retrying won't fix it.
+
+## Deploying into Hermes
 
 ```bash
-# Basic usage
-python3 routing-router.py "your task description"
-
-# JSON output (for programmatic use)
-python3 routing-router.py "your task" --json
-
-# Explicit task type tag
-python3 routing-router.py "your task" --tag code
-
-# Ask when confused (interactive)
-python3 routing-router.py "hey write a plan" --ask-if-confused
-
-# List all available providers and models
-python3 routing-router.py --list-providers
-
-# Read task from stdin
-echo "write a function" | python3 routing-router.py
+cp routing-catalog.json routing-rules.json router.py providers.py respond.py "$HERMES_HOME/"
+mkdir -p "$HERMES_HOME/skills/model-router"
+cp skills/model-router/SKILL.md "$HERMES_HOME/skills/model-router/"
 ```
 
-## Mid-Session Model Switching
+The agent then calls the router as its first action on each turn:
 
-`/model <name>` works mid-session on CLI and Telegram. The current turn's
-response still comes from the pre-switch model, but all subsequent turns use
-the routed model. This means:
+```bash
+python router.py "<task text>" --json    # then apply .switch_command
+```
 
-- Message N: routed by the router, responded to by the previous model
-- Message N+1: uses the correctly routed model
+Note on mid-session switching: `/model` takes effect from the *next* turn. The
+turn that triggered the switch is still answered by the previous model. Use
+`respond.py` instead when you need the routed model to answer immediately —
+it calls the chosen model directly and sidesteps the delay.
 
-For a flowing conversation, this is close enough — the classification and
-decision are automatic, and the model is correct within one turn.
+## Using it as a library
 
-## How Classification Works
+```python
+from router import Router
 
-The router matches task text against keyword lists for each task type:
+router = Router()
+decision = router.route("write a python function to merge two sorted lists")
+print(decision["provider"], decision["model"], decision["switch_command"])
 
-- **Multi-word keywords** (phrases like "pros and cons"): substring match
-- **Single-word keywords ≥4 chars** (like "debug"): substring match catches variants ("debugging")
-- **Short keywords <4 chars** (like "go"): word-boundary match only (avoids false positives)
+from respond import respond
+result = respond(router, "explain monads in two sentences")
+print(result["response"])
+router.save_state()
+```
 
-Scoring:
-- Each keyword match: +10 points (phrase) or +3 (short word)
-- Free provider bonus: +8
-- Preferred provider for task type: +5
-- Rate limit penalty: -20 per hit
-- Below confidence threshold (12): asks user if genuinely ambiguous
+## Tests
 
-## Rate Limit & Cooldown
+```bash
+python -m pytest tests -q
+```
 
-When a provider returns rate limit errors:
-- Each hit increments `rate_limit_hits`
-- At 3 hits: provider enters 5-minute cooldown
-- Cooldown providers are skipped during routing
-- Cooldown expires automatically after duration
+47 tests, no network access — provider calls are stubbed. They cover
+classification (including the regressions this router was built to fix),
+candidate scoring, cooldown handling, key filtering, config resolution, HTTP
+error classification and end-to-end failover.
 
-## Files
+## Layout
 
 ```
 hermes-model-router/
-├── routing-catalog.json       # Provider + model catalog
-├── routing-rules.json          # Task types + scoring rules
-├── routing-state.json          # Live state (rate limits, history)
-├── routing-router.py           # Router core (classify → score → pick)
-├── skills/
-│   └── model-router/
-│       └── SKILL.md            # Hermes skill wrapper
-├── examples/
-│   └── demo.sh                 # Quick demo script
-└── README.md
+├── router.py                   # config, classification, scoring, state, CLI
+├── providers.py                # HTTP adapters + error classification
+├── respond.py                  # route → call → failover → record
+├── routing-catalog.json        # providers and models
+├── routing-rules.json          # task types and scoring
+├── routing-state.json          # live state (gitignored)
+├── skills/model-router/SKILL.md
+├── examples/demo.py
+└── tests/test_router.py
 ```
-
-## Demo
-
-```bash
-# Run the demo script
-bash examples/demo.sh
-```
-
-This runs 10 sample tasks through the router and prints a table of decisions.
-
-## Integrating as an Automatic Gateway Hook
-
-For true "always active" automatic routing on Telegram/Discord, wire the
-router into the Hermes gateway as a pre-task hook. The router script is the
-core — the hook is the plumbing:
-
-```python
-# Pseudo-code for gateway integration
-def on_incoming_message(message):
-    decision = run_router(message.text)
-    if decision["ask_user"]:
-        ask_user(decision["ask_prompt"])
-    else:
-        switch_model(decision["switch_command"])
-    # Now process the message on the routed model
-```
-
-The current prototype is a script + skill that agents call before each task.
-Gateway hook integration is the next step.
 
 ## License
 

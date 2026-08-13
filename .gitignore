@@ -9,7 +9,11 @@ venv/
 
 # Hermes
 routing-state.json
+examples/.demo-state.json
 *.log
+
+# Test tooling
+.pytest_cache/
 
 # OS
 .DS_Store
